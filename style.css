@@ -1,0 +1,737 @@
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-tertiary: #e9ecef;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --border-color: #dee2e6;
+    --accent-color: #0d6efd;
+    --accent-hover: #0b5ed7;
+    --success-color: #198754;
+    --danger-color: #dc3545;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --toolbar-height: 200px;
+}
+
+[data-theme="dark"] {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #242424;
+    --bg-tertiary: #2d2d2d;
+    --text-primary: #e9ecef;
+    --text-secondary: #adb5bd;
+    --border-color: #404040;
+    --accent-color: #3d8bfd;
+    --accent-hover: #5a9fff;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding-bottom: var(--toolbar-height);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow);
+}
+
+.theme-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: var(--shadow-hover);
+}
+
+.theme-toggle svg {
+    color: var(--text-primary);
+}
+
+.theme-toggle .moon-icon {
+    display: none;
+}
+
+[data-theme="dark"] .theme-toggle .sun-icon {
+    display: none;
+}
+
+[data-theme="dark"] .theme-toggle .moon-icon {
+    display: block;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    padding: 40px 20px 30px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+/* Main Content */
+.main-content {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Audio List */
+.audio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.audio-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow);
+}
+
+.audio-item:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+}
+
+.audio-item.playing {
+    border-color: var(--accent-color);
+    background: var(--bg-tertiary);
+}
+
+.audio-item.playing .audio-name {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.audio-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: var(--accent-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.audio-item.playing .audio-icon {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.audio-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.audio-name {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.audio-controls {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.audio-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+}
+
+.audio-btn:hover {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.audio-btn:active {
+    transform: scale(0.95);
+}
+
+.audio-btn.playing {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.audio-btn .pause-icon {
+    display: none;
+}
+
+.audio-btn.playing .play-icon {
+    display: none;
+}
+
+.audio-btn.playing .pause-icon {
+    display: block;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+}
+
+.empty-state svg {
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.empty-state h2 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+/* Toolbar */
+.toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    padding: 12px 16px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+}
+
+.toolbar-info {
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.track-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 10px;
+}
+
+.track-time {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.time-separator {
+    margin: 0 4px;
+}
+
+/* Progress Bar */
+.progress-bar-container {
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 0 4px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: var(--accent-color);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.1s linear;
+    pointer-events: none;
+}
+
+.progress-bar:hover {
+    height: 8px;
+}
+
+.toolbar-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.control-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+    flex-shrink: 0;
+}
+
+.control-btn-large {
+    min-width: 52px;
+    min-height: 52px;
+    width: 52px;
+    height: 52px;
+}
+
+.control-btn:not(:disabled):hover {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+    transform: scale(1.05);
+}
+
+.control-btn:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.control-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.control-btn .pause-icon {
+    display: none;
+}
+
+.control-btn.playing .play-icon {
+    display: none;
+}
+
+.control-btn.playing .pause-icon {
+    display: block;
+}
+
+.toolbar-options {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.option-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+.option-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.option-btn.active {
+    background: var(--success-color);
+    color: white;
+    border-color: var(--success-color);
+}
+
+.option-btn svg {
+    flex-shrink: 0;
+}
+
+.option-label {
+    font-weight: 500;
+}
+
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.volume-control .option-btn {
+    padding: 8px 10px;
+}
+
+.volume-control .mute-icon {
+    display: none;
+}
+
+.volume-control .option-btn.muted .volume-icon {
+    display: none;
+}
+
+.volume-control .option-btn.muted .mute-icon {
+    display: block;
+}
+
+.volume-slider {
+    width: 80px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-color);
+    outline: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.volume-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* Mobile Responsive Design */
+@media (max-width: 768px) {
+    :root {
+        --toolbar-height: 220px;
+    }
+
+    .theme-toggle {
+        width: 44px;
+        height: 44px;
+        top: 16px;
+        right: 16px;
+    }
+
+    .header {
+        padding: 60px 20px 24px;
+    }
+
+    .header h1 {
+        font-size: 1.75rem;
+    }
+
+    .main-content {
+        padding: 16px;
+    }
+
+    .audio-item {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .audio-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .audio-name {
+        font-size: 0.9rem;
+    }
+
+    .audio-controls {
+        gap: 6px;
+    }
+
+    .audio-btn {
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .toolbar {
+        padding: 10px 12px;
+    }
+
+    .track-name {
+        font-size: 0.9rem;
+    }
+
+    .toolbar-controls {
+        gap: 6px;
+    }
+
+    .control-btn {
+        min-width: 40px;
+        min-height: 40px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .control-btn-large {
+        min-width: 48px;
+        min-height: 48px;
+        width: 48px;
+        height: 48px;
+    }
+
+    .option-btn {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+    }
+
+    .volume-slider {
+        width: 70px;
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --toolbar-height: 230px;
+    }
+
+    .theme-toggle {
+        top: 12px;
+        right: 12px;
+    }
+
+    .header {
+        padding: 50px 16px 20px;
+    }
+
+    .header h1 {
+        font-size: 1.5rem;
+    }
+
+    .subtitle {
+        font-size: 0.85rem;
+    }
+
+    .main-content {
+        padding: 12px;
+    }
+
+    .audio-list {
+        gap: 10px;
+    }
+
+    .audio-item {
+        padding: 10px;
+        gap: 8px;
+    }
+
+    .audio-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .audio-icon svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .audio-name {
+        font-size: 0.85rem;
+    }
+
+    .audio-controls {
+        gap: 4px;
+    }
+
+    .audio-btn {
+        min-width: 36px;
+        min-height: 36px;
+    }
+
+    .audio-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .toolbar {
+        padding: 8px 10px;
+    }
+
+    .track-name {
+        font-size: 0.85rem;
+        padding: 0 5px;
+    }
+
+    .track-time {
+        font-size: 0.75rem;
+    }
+
+    .toolbar-controls {
+        gap: 4px;
+        margin-bottom: 8px;
+    }
+
+    .control-btn {
+        min-width: 36px;
+        min-height: 36px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .control-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .control-btn-large {
+        min-width: 44px;
+        min-height: 44px;
+        width: 44px;
+        height: 44px;
+    }
+
+    .control-btn-large svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .toolbar-options {
+        gap: 6px;
+    }
+
+    .option-btn {
+        padding: 6px 8px;
+        font-size: 0.75rem;
+        min-height: 36px;
+    }
+
+    .option-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .volume-slider {
+        width: 60px;
+    }
+
+    .option-label {
+        font-size: 0.7rem;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 360px) {
+    .header h1 {
+        font-size: 1.3rem;
+    }
+
+    .audio-name {
+        font-size: 0.8rem;
+    }
+
+    .control-btn {
+        min-width: 32px;
+        min-height: 32px;
+        width: 32px;
+        height: 32px;
+    }
+
+    .control-btn-large {
+        min-width: 40px;
+        min-height: 40px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .volume-slider {
+        width: 50px;
+    }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 900px) and (orientation: landscape) {
+    :root {
+        --toolbar-height: 180px;
+    }
+
+    .header {
+        padding: 40px 20px 16px;
+    }
+
+    .toolbar {
+        padding: 8px 12px;
+    }
+
+    .toolbar-controls {
+        margin-bottom: 6px;
+    }
+}
