@@ -436,6 +436,90 @@ body {
 .volume-control .option-btn.muted .mute-icon {
     display: block;
 }
+.speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.speed-control svg {
+    flex-shrink: 0;
+    color: var(--text-primary);
+}
+
+.speed-slider {
+    width: 90px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-color);
+    outline: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.speed-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.speed-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.speed-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.speed-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+.speed-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 42px;
+    text-align: center;
+}
+
+/* Mobile adjustments for speed control */
+@media (max-width: 768px) {
+    .speed-slider {
+        width: 70px;
+    }
+    
+    .speed-label {
+        font-size: 0.8rem;
+        min-width: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .speed-slider {
+        width: 60px;
+    }
+    
+    .speed-label {
+        font-size: 0.75rem;
+        min-width: 35px;
+    }
+    
+    .speed-control svg {
+        width: 16px;
+        height: 16px;
+    }
+}
 
 .volume-slider {
     width: 80px;

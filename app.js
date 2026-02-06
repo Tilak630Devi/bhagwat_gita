@@ -6,10 +6,11 @@ const state = {
     audioFiles: [],
     currentIndex: -1,
     isPlaying: false,
-    autoplay: false,
+    autoplay: true,
     loopPlaylist: false,
     volume: 100,
-    isMuted: false
+    isMuted: false,
+    playbackSpeed: 1.0
 };
 
 // DOM Elements
@@ -29,6 +30,8 @@ const elements = {
     forwardBtn: document.getElementById('forwardBtn'),
     autoplayBtn: document.getElementById('autoplayBtn'),
     loopBtn: document.getElementById('loopBtn'),
+    speedSlider: document.getElementById('speedSlider'),
+    speedLabel: document.getElementById('speedLabel'),
     muteBtn: document.getElementById('muteBtn'),
     volumeSlider: document.getElementById('volumeSlider'),
     
@@ -175,6 +178,8 @@ function playAudio(index) {
         updateCurrentTrackInfo();
     }
     
+    // Set playback speed
+    elements.audioPlayer.playbackRate = state.playbackSpeed;
     // Play the audio
     const playPromise = elements.audioPlayer.play();
     
@@ -352,6 +357,14 @@ elements.loopBtn.addEventListener('click', () => {
     }
 });
 
+// Playback speed slider handler
+elements.speedSlider.addEventListener('input', (e) => {
+    const speed = parseFloat(e.target.value);
+    state.playbackSpeed = speed;
+    elements.audioPlayer.playbackRate = speed;
+    elements.speedLabel.textContent = `${speed.toFixed(2)}x`;
+});
+
 // Volume slider handler
 elements.volumeSlider.addEventListener('input', (e) => {
     const volume = parseInt(e.target.value);
@@ -419,6 +432,12 @@ function init() {
     
     // Set initial volume
     elements.audioPlayer.volume = state.volume / 100;
+    
+    // Set initial speed label text
+    elements.speedLabel.textContent = `${state.playbackSpeed}x`;
+    
+    // Set initial playback speed
+    elements.audioPlayer.playbackRate = state.playbackSpeed;
 }
 
 // Start the app when DOM is ready
