@@ -24,6 +24,11 @@ const elements = {
     audioCount:         document.getElementById('audioCount'),
     themeToggle:        document.getElementById('themeToggle'),
 
+    // Loading elements
+    loadingContainer:   document.getElementById('loadingContainer'),
+    loadingFill:        document.getElementById('loadingFill'),
+    loadingText:        document.getElementById('loadingText'),
+
     // Toolbar controls
     globalPlayPauseBtn: document.getElementById('globalPlayPauseBtn'),
     prevBtn:            document.getElementById('prevBtn'),
@@ -90,6 +95,13 @@ function loadAudioFiles() {
         return;
     }
 
+    let loadedCount = 0;
+    const totalFiles = AUDIO_FILES.length;
+
+    // Initialize loading UI
+    elements.loadingText.textContent = `Loading: 0 / ${totalFiles}`;
+    elements.loadingFill.style.width = '0%';
+
     // FIX: Preload ALL audio files upfront using individual Audio objects
     state.audioFiles = AUDIO_FILES.map(filename => {
         const audio = new Audio(`All_Audio/${filename}`);
@@ -105,12 +117,24 @@ function loadAudioFiles() {
     // Attach event listeners to each Audio object
     state.audioFiles.forEach((file, index) => {
         attachAudioListeners(file.audio, index);
-    });
 
-    elements.audioList.style.display = '';  // FIX: ensure list is visible
-    elements.emptyState.style.display = 'none';
-    renderAudioList();
-    updateAudioCount();
+        // Track loading progress
+        file.audio.addEventListener('canplaythrough', () => {
+            loadedCount++;
+            const progress = (loadedCount / totalFiles) * 100;
+            elements.loadingFill.style.width = `${progress}%`;
+            elements.loadingText.textContent = `Loading: ${loadedCount} / ${totalFiles}`;
+
+            if (loadedCount === totalFiles) {
+                // All files loaded
+                elements.loadingContainer.style.display = 'none';
+                elements.audioList.style.display = '';  // show list
+                elements.emptyState.style.display = 'none';
+                renderAudioList();
+                updateAudioCount();
+            }
+        });
+    });
 }
 
 // ─────────────────────────────────────────────
