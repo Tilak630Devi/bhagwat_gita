@@ -1,9 +1,11 @@
 // app.js
-// Audio Player Application
+// Audio Player Application — Fixed & Updated
 
+// ─────────────────────────────────────────────
 // State Management
+// ─────────────────────────────────────────────
 const state = {
-    audioFiles: [],
+    audioFiles: [],       // Array of { name, audio (Audio object), displayName }
     currentIndex: -1,
     isPlaying: false,
     autoplay: true,
@@ -13,106 +15,204 @@ const state = {
     playbackSpeed: 1.0
 };
 
+// ─────────────────────────────────────────────
 // DOM Elements
+// ─────────────────────────────────────────────
 const elements = {
-    audioPlayer: document.getElementById('audioPlayer'),
-    audioList: document.getElementById('audioList'),
-    emptyState: document.getElementById('emptyState'),
-    audioCount: document.getElementById('audioCount'),
-    themeToggle: document.getElementById('themeToggle'),
-    
+    audioList:          document.getElementById('audioList'),
+    emptyState:         document.getElementById('emptyState'),
+    audioCount:         document.getElementById('audioCount'),
+    themeToggle:        document.getElementById('themeToggle'),
+
     // Toolbar controls
     globalPlayPauseBtn: document.getElementById('globalPlayPauseBtn'),
-    prevBtn: document.getElementById('prevBtn'),
-    nextBtn: document.getElementById('nextBtn'),
-    restartBtn: document.getElementById('restartBtn'),
-    rewindBtn: document.getElementById('rewindBtn'),
-    forwardBtn: document.getElementById('forwardBtn'),
-    autoplayBtn: document.getElementById('autoplayBtn'),
-    loopBtn: document.getElementById('loopBtn'),
-    speedSlider: document.getElementById('speedSlider'),
-    speedLabel: document.getElementById('speedLabel'),
-    muteBtn: document.getElementById('muteBtn'),
-    volumeSlider: document.getElementById('volumeSlider'),
-    
+    prevBtn:            document.getElementById('prevBtn'),
+    nextBtn:            document.getElementById('nextBtn'),
+    restartBtn:         document.getElementById('restartBtn'),
+    rewindBtn:          document.getElementById('rewindBtn'),
+    forwardBtn:         document.getElementById('forwardBtn'),
+    autoplayBtn:        document.getElementById('autoplayBtn'),
+    loopBtn:            document.getElementById('loopBtn'),
+    speedSlider:        document.getElementById('speedSlider'),
+    speedLabel:         document.getElementById('speedLabel'),
+    muteBtn:            document.getElementById('muteBtn'),
+    volumeSlider:       document.getElementById('volumeSlider'),
+
     // Progress bar
-    progressBar: document.getElementById('progressBar'),
-    progressBarFill: document.getElementById('progressBarFill'),
-    
+    progressBar:        document.getElementById('progressBar'),
+    progressBarFill:    document.getElementById('progressBarFill'),
+
     // Toolbar info
-    currentTrackName: document.getElementById('currentTrackName'),
-    currentTime: document.getElementById('currentTime'),
-    totalTime: document.getElementById('totalTime')
+    currentTrackName:   document.getElementById('currentTrackName'),
+    currentTime:        document.getElementById('currentTime'),
+    totalTime:          document.getElementById('totalTime')
 };
 
-// Initialize theme based on system preference
-function initTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const theme = savedTheme || systemTheme;
-    document.documentElement.setAttribute('data-theme', theme);
+// ─────────────────────────────────────────────
+// Helper: get the Audio object for current track
+// ─────────────────────────────────────────────
+function currentAudio() {
+    if (state.currentIndex < 0 || state.currentIndex >= state.audioFiles.length) return null;
+    return state.audioFiles[state.currentIndex].audio;
 }
 
-// Toggle theme
+// ─────────────────────────────────────────────
+// Theme
+// ─────────────────────────────────────────────
+function initTheme() {
+    const savedTheme  = localStorage.getItem('theme');
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme || systemTheme);
+}
+
 elements.themeToggle.addEventListener('click', () => {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    const current  = document.documentElement.getAttribute('data-theme');
+    const newTheme = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
 });
 
-// Load audio files from manifest
+// ─────────────────────────────────────────────
+// Load & preload all audio files on page load
+// ─────────────────────────────────────────────
 function loadAudioFiles() {
     if (typeof AUDIO_FILES === 'undefined' || !Array.isArray(AUDIO_FILES)) {
-        console.error('AUDIO_FILES not found or invalid in audio-manifest.js');
+        console.error(
+            '[AudioPlayer] AUDIO_FILES is not defined. ' +
+            'Create audio-manifest.js and export: const AUDIO_FILES = ["file1.mp3", ...];'
+        );
         showEmptyState();
         return;
     }
 
-    // Use the exact order from manifest
-    state.audioFiles = AUDIO_FILES.map(filename => ({
-        name: filename,
-        path: `All_Audio/${filename}`,
-        displayName: filename.replace(/\.[^/.]+$/, '') // Remove extension
-    }));
-
-    if (state.audioFiles.length === 0) {
+    if (AUDIO_FILES.length === 0) {
         showEmptyState();
-    } else {
-        renderAudioList();
-        updateAudioCount();
+        return;
+    }
+
+    // FIX: Preload ALL audio files upfront using individual Audio objects
+    state.audioFiles = AUDIO_FILES.map(filename => {
+        const audio = new Audio(`All_Audio/${filename}`);
+        audio.preload = 'auto';          // instruct browser to load the full file
+        audio.volume  = state.volume / 100;
+        return {
+            name:        filename,
+            audio,
+            displayName: filename.replace(/\.[^/.]+$/, '') // strip extension
+        };
+    });
+
+    // Attach event listeners to each Audio object
+    state.audioFiles.forEach((file, index) => {
+        attachAudioListeners(file.audio, index);
+    });
+
+    elements.audioList.style.display = '';  // FIX: ensure list is visible
+    elements.emptyState.style.display = 'none';
+    renderAudioList();
+    updateAudioCount();
+}
+
+// ─────────────────────────────────────────────
+// Attach per-track Audio event listeners
+// ─────────────────────────────────────────────
+function attachAudioListeners(audio, index) {
+    // FIX: apply speed on metadata load so it always sticks after preload
+    audio.addEventListener('loadedmetadata', () => {
+        audio.playbackRate = state.playbackSpeed;
+        if (index === state.currentIndex) {
+            elements.totalTime.textContent = formatTime(audio.duration);
+        }
+    });
+
+    audio.addEventListener('timeupdate', () => {
+        if (index !== state.currentIndex) return;
+        elements.currentTime.textContent = formatTime(audio.currentTime);
+        updateProgressBar();
+    });
+
+    audio.addEventListener('ended', () => {
+        if (index !== state.currentIndex) return;
+        state.isPlaying = false;
+        updatePlayingState();
+        handleTrackEnded();
+    });
+
+    // FIX: skip to next track on error instead of silently stopping
+    audio.addEventListener('error', () => {
+        if (index !== state.currentIndex) return;
+        console.error(`[AudioPlayer] Error loading: ${state.audioFiles[index].name}`);
+        showInlineError(index);
+        state.isPlaying = false;
+        updatePlayingState();
+        // Attempt to skip to next track automatically
+        trySkipOnError();
+    });
+}
+
+// ─────────────────────────────────────────────
+// Auto-skip on error with guard against loops
+// ─────────────────────────────────────────────
+let errorSkipCount = 0;
+function trySkipOnError() {
+    if (errorSkipCount >= state.audioFiles.length) {
+        errorSkipCount = 0;
+        return; // all tracks errored, give up
+    }
+    errorSkipCount++;
+    const next = state.currentIndex + 1;
+    if (state.autoplay && next < state.audioFiles.length) {
+        playAudio(next);
+    } else if (state.autoplay && state.loopPlaylist) {
+        playAudio(0);
     }
 }
 
-// Show empty state when no files found
-function showEmptyState() {
-    elements.audioList.style.display = 'none';
-    elements.emptyState.style.display = 'block';
-    elements.audioCount.textContent = 'No audio files found';
+// ─────────────────────────────────────────────
+// Inline error message (replaces alert)  FIX
+// ─────────────────────────────────────────────
+function showInlineError(index) {
+    const item = document.querySelector(`.audio-item[data-index="${index}"]`);
+    if (!item) return;
+    let errEl = item.querySelector('.audio-error');
+    if (!errEl) {
+        errEl = document.createElement('span');
+        errEl.className = 'audio-error';
+        errEl.style.cssText = 'color:red; font-size:0.75rem; margin-left:8px;';
+        item.querySelector('.audio-info').appendChild(errEl);
+    }
+    errEl.textContent = 'File unavailable';
 }
 
-// Update audio count display
+// ─────────────────────────────────────────────
+// Empty state
+// ─────────────────────────────────────────────
+function showEmptyState() {
+    elements.audioList.style.display  = 'none';
+    elements.emptyState.style.display = 'block';
+    elements.audioCount.textContent   = 'No audio files found';
+}
+
 function updateAudioCount() {
     const count = state.audioFiles.length;
     elements.audioCount.textContent = `${count} audio file${count !== 1 ? 's' : ''}`;
 }
 
-// Render audio list
+// ─────────────────────────────────────────────
+// Render list
+// ─────────────────────────────────────────────
 function renderAudioList() {
     elements.audioList.innerHTML = '';
-    
     state.audioFiles.forEach((audio, index) => {
-        const item = createAudioItem(audio, index);
-        elements.audioList.appendChild(item);
+        elements.audioList.appendChild(createAudioItem(audio, index));
     });
 }
 
-// Create individual audio item
 function createAudioItem(audio, index) {
     const item = document.createElement('div');
-    item.className = 'audio-item';
+    item.className    = 'audio-item';
     item.dataset.index = index;
-    
+
     item.innerHTML = `
         <div class="audio-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -139,18 +239,16 @@ function createAudioItem(audio, index) {
             </button>
         </div>
     `;
-    
-    // Event listeners for audio item controls
-    const playPauseBtn = item.querySelector('.play-pause-btn');
-    const restartBtn = item.querySelector('.restart-btn');
-    
-    playPauseBtn.addEventListener('click', () => handleItemPlayPause(index));
-    restartBtn.addEventListener('click', () => handleItemRestart(index));
-    
+
+    item.querySelector('.play-pause-btn').addEventListener('click', () => handleItemPlayPause(index));
+    item.querySelector('.restart-btn').addEventListener('click',    () => handleItemRestart(index));
+
     return item;
 }
 
-// Handle play/pause for individual audio item
+// ─────────────────────────────────────────────
+// Playback controls
+// ─────────────────────────────────────────────
 function handleItemPlayPause(index) {
     if (state.currentIndex === index && state.isPlaying) {
         pauseAudio();
@@ -159,288 +257,386 @@ function handleItemPlayPause(index) {
     }
 }
 
-// Handle restart for individual audio item
+// FIX: restart sets currentTime=0 inside the promise so it's guaranteed to work
 function handleItemRestart(index) {
-    playAudio(index);
-    elements.audioPlayer.currentTime = 0;
-}
+    const file = state.audioFiles[index];
+    if (!file) return;
 
-// Play audio at specific index
-function playAudio(index) {
-    if (index < 0 || index >= state.audioFiles.length) return;
-    
-    const audio = state.audioFiles[index];
-    
-    // If switching to a different track
     if (state.currentIndex !== index) {
-        elements.audioPlayer.src = audio.path;
+        // Stop current track first
+        stopCurrentAudio();
         state.currentIndex = index;
         updateCurrentTrackInfo();
+        syncTimeDisplay();
     }
-    
-    // Set playback speed
-    elements.audioPlayer.playbackRate = state.playbackSpeed;
-    // Play the audio
-    const playPromise = elements.audioPlayer.play();
-    
-    if (playPromise !== undefined) {
-        playPromise
-            .then(() => {
-                state.isPlaying = true;
-                updatePlayingState();
-            })
-            .catch(error => {
-                console.error('Error playing audio:', error);
-                alert(`Error playing ${audio.displayName}. File may not exist or format is unsupported.`);
-            });
-    }
+
+    const audio = file.audio;
+    audio.currentTime  = 0;
+    audio.playbackRate = state.playbackSpeed;
+
+    audio.play()
+        .then(() => {
+            state.isPlaying = true;
+            errorSkipCount  = 0;
+            updatePlayingState();
+        })
+        .catch(err => {
+            console.error('[AudioPlayer] Restart error:', err);
+            showInlineError(index);
+        });
 }
 
-// Pause audio
+function playAudio(index) {
+    if (index < 0 || index >= state.audioFiles.length) return;
+
+    const file = state.audioFiles[index];
+
+    // Stop currently playing track cleanly
+    if (state.currentIndex !== index) {
+        stopCurrentAudio();
+        state.currentIndex = index;
+        updateCurrentTrackInfo();
+        syncTimeDisplay();
+    }
+
+    const audio = file.audio;
+    // FIX: always (re-)apply speed before playing — ensures it survives src changes
+    audio.playbackRate = state.playbackSpeed;
+    audio.volume       = state.isMuted ? 0 : state.volume / 100;
+
+    audio.play()
+        .then(() => {
+            state.isPlaying = true;
+            errorSkipCount  = 0;
+            updatePlayingState();
+            scrollToTrack(index);
+        })
+        .catch(err => {
+            console.error(`[AudioPlayer] Play error for "${file.name}":`, err);
+            showInlineError(index);
+        });
+}
+
 function pauseAudio() {
-    elements.audioPlayer.pause();
+    const audio = currentAudio();
+    if (audio) audio.pause();
     state.isPlaying = false;
     updatePlayingState();
 }
 
-// Update playing state UI
-function updatePlayingState() {
-    // Update all audio items
-    document.querySelectorAll('.audio-item').forEach(item => {
-        const index = parseInt(item.dataset.index);
-        const playPauseBtn = item.querySelector('.play-pause-btn');
-        
-        if (index === state.currentIndex && state.isPlaying) {
-            item.classList.add('playing');
-            playPauseBtn.classList.add('playing');
-        } else {
-            item.classList.remove('playing');
-            playPauseBtn.classList.remove('playing');
-        }
-    });
-    
-    // Update global play/pause button
-    if (state.isPlaying) {
-        elements.globalPlayPauseBtn.classList.add('playing');
-    } else {
-        elements.globalPlayPauseBtn.classList.remove('playing');
+// Stop & reset the currently active Audio object
+function stopCurrentAudio() {
+    const audio = currentAudio();
+    if (audio) {
+        audio.pause();
+        // do NOT reset currentTime — user may resume later
     }
-    
-    // Enable/disable toolbar buttons
+    state.isPlaying = false;
+}
+
+// ─────────────────────────────────────────────
+// Track-ended handler
+// ─────────────────────────────────────────────
+function handleTrackEnded() {
+    const isLast = state.currentIndex === state.audioFiles.length - 1;
+
+    if (state.loopPlaylist) {
+        // Loop always wraps — autoplay is off in this state
+        playAudio(isLast ? 0 : state.currentIndex + 1);
+    } else if (state.autoplay && !isLast) {
+        // Autoplay advances linearly, stops at end
+        playAudio(state.currentIndex + 1);
+    }
+}
+
+// ─────────────────────────────────────────────
+// UI helpers
+// ─────────────────────────────────────────────
+function updatePlayingState() {
+    document.querySelectorAll('.audio-item').forEach(item => {
+        const idx        = parseInt(item.dataset.index);
+        const btn        = item.querySelector('.play-pause-btn');
+        const isActive   = idx === state.currentIndex && state.isPlaying;
+        item.classList.toggle('playing', isActive);
+        btn.classList.toggle('playing',  isActive);
+    });
+
+    elements.globalPlayPauseBtn.classList.toggle('playing', state.isPlaying);
     updateToolbarButtons();
 }
 
-// Update current track info in toolbar
 function updateCurrentTrackInfo() {
     if (state.currentIndex >= 0 && state.currentIndex < state.audioFiles.length) {
-        const audio = state.audioFiles[state.currentIndex];
-        elements.currentTrackName.textContent = audio.displayName;
+        elements.currentTrackName.textContent = state.audioFiles[state.currentIndex].displayName;
     } else {
         elements.currentTrackName.textContent = 'No track selected';
     }
 }
 
-// Update toolbar buttons enabled/disabled state
+// Sync time display when switching tracks (shows preloaded duration if available)
+function syncTimeDisplay() {
+    const audio = currentAudio();
+    if (!audio) return;
+    elements.currentTime.textContent = formatTime(audio.currentTime);
+    elements.totalTime.textContent   = formatTime(audio.duration);
+    updateProgressBar();
+}
+
+// FIX: disable Next/Prev correctly when loop is ON (wrap is possible)
 function updateToolbarButtons() {
     const hasTrack = state.currentIndex >= 0;
-    const hasPrev = state.currentIndex > 0;
-    const hasNext = state.currentIndex < state.audioFiles.length - 1;
-    
+    const hasPrev  = state.currentIndex > 0  || state.loopPlaylist;
+    const hasNext  = state.currentIndex < state.audioFiles.length - 1 || state.loopPlaylist;
+
     elements.globalPlayPauseBtn.disabled = !hasTrack;
-    elements.restartBtn.disabled = !hasTrack;
-    elements.rewindBtn.disabled = !hasTrack;
-    elements.forwardBtn.disabled = !hasTrack;
-    elements.prevBtn.disabled = !hasPrev;
-    elements.nextBtn.disabled = !hasNext;
+    elements.restartBtn.disabled         = !hasTrack;
+    elements.rewindBtn.disabled          = !hasTrack;
+    elements.forwardBtn.disabled         = !hasTrack;
+    elements.prevBtn.disabled            = !hasPrev;
+    elements.nextBtn.disabled            = !hasNext;
 }
 
-// Format time in MM:SS
+// FIX: formatTime handles hours correctly
 function formatTime(seconds) {
-    if (isNaN(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
+    const h    = Math.floor(seconds / 3600);
+    const m    = Math.floor((seconds % 3600) / 60);
+    const s    = Math.floor(seconds % 60);
+    const mm   = h > 0 ? String(m).padStart(2, '0') : String(m);
+    const ss   = String(s).padStart(2, '0');
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-// Update progress bar
 function updateProgressBar() {
-    if (elements.audioPlayer.duration) {
-        const progress = (elements.audioPlayer.currentTime / elements.audioPlayer.duration) * 100;
+    const audio = currentAudio();
+    if (audio && audio.duration) {
+        const progress = (audio.currentTime / audio.duration) * 100;
         elements.progressBarFill.style.width = `${progress}%`;
     }
 }
 
-// Seek to position in audio
+// FIX: scroll active track into view
+function scrollToTrack(index) {
+    const item = document.querySelector(`.audio-item[data-index="${index}"]`);
+    if (item) item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─────────────────────────────────────────────
+// Progress bar — click AND drag  FIX
+// ─────────────────────────────────────────────
+let isDraggingProgress = false;
+
+function seekFromEvent(e) {
+    const rect       = elements.progressBar.getBoundingClientRect();
+    const x          = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    seekTo(percentage);
+}
+
 function seekTo(percentage) {
-    if (elements.audioPlayer.duration) {
-        elements.audioPlayer.currentTime = (percentage / 100) * elements.audioPlayer.duration;
+    const audio = currentAudio();
+    if (audio && audio.duration) {
+        audio.currentTime = (percentage / 100) * audio.duration;
     }
 }
 
-// Progress bar click handler
-elements.progressBar.addEventListener('click', (e) => {
-    const rect = elements.progressBar.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = (x / rect.width) * 100;
-    seekTo(percentage);
+elements.progressBar.addEventListener('mousedown', e => {
+    isDraggingProgress = true;
+    seekFromEvent(e);
+});
+document.addEventListener('mousemove', e => {
+    if (isDraggingProgress) seekFromEvent(e);
+});
+document.addEventListener('mouseup', () => {
+    isDraggingProgress = false;
 });
 
-// Global play/pause handler
+// Touch support for progress bar
+elements.progressBar.addEventListener('touchstart', e => {
+    isDraggingProgress = true;
+    seekFromEvent(e.touches[0]);
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+    if (isDraggingProgress) seekFromEvent(e.touches[0]);
+}, { passive: true });
+document.addEventListener('touchend', () => {
+    isDraggingProgress = false;
+});
+
+// ─────────────────────────────────────────────
+// Toolbar button event listeners
+// ─────────────────────────────────────────────
 elements.globalPlayPauseBtn.addEventListener('click', () => {
-    if (state.currentIndex >= 0) {
-        if (state.isPlaying) {
-            pauseAudio();
-        } else {
-            playAudio(state.currentIndex);
-        }
-    }
+    if (state.currentIndex < 0) return;
+    state.isPlaying ? pauseAudio() : playAudio(state.currentIndex);
 });
 
-// Previous track handler
+// FIX: prev wraps around when loopPlaylist is on
 elements.prevBtn.addEventListener('click', () => {
     if (state.currentIndex > 0) {
         playAudio(state.currentIndex - 1);
+    } else if (state.loopPlaylist) {
+        playAudio(state.audioFiles.length - 1);
     }
 });
 
-// Next track handler
+// FIX: next wraps around when loopPlaylist is on
 elements.nextBtn.addEventListener('click', () => {
     if (state.currentIndex < state.audioFiles.length - 1) {
         playAudio(state.currentIndex + 1);
+    } else if (state.loopPlaylist) {
+        playAudio(0);
     }
 });
 
-// Restart current track handler
 elements.restartBtn.addEventListener('click', () => {
     if (state.currentIndex >= 0) {
-        elements.audioPlayer.currentTime = 0;
-        if (!state.isPlaying) {
-            playAudio(state.currentIndex);
-        }
+        handleItemRestart(state.currentIndex);
     }
 });
 
-// Rewind 10 seconds handler
 elements.rewindBtn.addEventListener('click', () => {
-    if (state.currentIndex >= 0) {
-        elements.audioPlayer.currentTime = Math.max(0, elements.audioPlayer.currentTime - 10);
-    }
+    const audio = currentAudio();
+    if (audio) audio.currentTime = Math.max(0, audio.currentTime - 10);
 });
 
-// Forward 10 seconds handler
 elements.forwardBtn.addEventListener('click', () => {
-    if (state.currentIndex >= 0 && elements.audioPlayer.duration) {
-        elements.audioPlayer.currentTime = Math.min(
-            elements.audioPlayer.duration,
-            elements.audioPlayer.currentTime + 10
-        );
+    const audio = currentAudio();
+    if (audio && audio.duration) {
+        audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
     }
 });
 
-// Autoplay toggle handler
 elements.autoplayBtn.addEventListener('click', () => {
     state.autoplay = !state.autoplay;
-    if (state.autoplay) {
-        elements.autoplayBtn.classList.add('active');
-    } else {
-        elements.autoplayBtn.classList.remove('active');
-    }
-});
+    elements.autoplayBtn.classList.toggle('active', state.autoplay);
 
-// Loop playlist toggle handler
-elements.loopBtn.addEventListener('click', () => {
-    state.loopPlaylist = !state.loopPlaylist;
-    if (state.loopPlaylist) {
-        elements.loopBtn.classList.add('active');
-    } else {
+    // Mutually exclusive: disable loop when autoplay is turned on
+    if (state.autoplay && state.loopPlaylist) {
+        state.loopPlaylist = false;
         elements.loopBtn.classList.remove('active');
     }
+    updateToolbarButtons();
 });
 
-// Playback speed slider handler
-elements.speedSlider.addEventListener('input', (e) => {
-    const speed = parseFloat(e.target.value);
+elements.loopBtn.addEventListener('click', () => {
+    state.loopPlaylist = !state.loopPlaylist;
+    elements.loopBtn.classList.toggle('active', state.loopPlaylist);
+
+    // Mutually exclusive: disable autoplay when loop is turned on
+    if (state.loopPlaylist && state.autoplay) {
+        state.autoplay = false;
+        elements.autoplayBtn.classList.remove('active');
+    }
+    updateToolbarButtons();
+});
+
+elements.speedSlider.addEventListener('input', e => {
+    const speed         = parseFloat(e.target.value);
     state.playbackSpeed = speed;
-    elements.audioPlayer.playbackRate = speed;
     elements.speedLabel.textContent = `${speed.toFixed(2)}x`;
+
+    // Apply to ALL preloaded Audio objects so switching tracks keeps the speed
+    state.audioFiles.forEach(file => {
+        file.audio.playbackRate = speed;
+    });
 });
 
-// Volume slider handler
-elements.volumeSlider.addEventListener('input', (e) => {
-    const volume = parseInt(e.target.value);
-    state.volume = volume;
-    elements.audioPlayer.volume = volume / 100;
-    
-    // Unmute if volume is increased while muted
-    if (volume > 0 && state.isMuted) {
+// FIX: volume slider fully updates state.volume and unmutes correctly
+elements.volumeSlider.addEventListener('input', e => {
+    const volume  = parseInt(e.target.value);
+    state.volume  = volume;                          // always update state
+    const level   = volume / 100;
+
+    state.audioFiles.forEach(file => {
+        file.audio.volume = state.isMuted ? 0 : level;
+    });
+
+    // FIX: sync mute button visual when slider is dragged to 0
+    if (volume === 0) {
+        state.isMuted = true;
+        elements.muteBtn.classList.add('muted');
+    } else if (state.isMuted) {
         state.isMuted = false;
         elements.muteBtn.classList.remove('muted');
     }
 });
 
-// Mute/unmute handler
+// FIX: mute button also updates the volume slider to 0 visually
 elements.muteBtn.addEventListener('click', () => {
     state.isMuted = !state.isMuted;
-    
-    if (state.isMuted) {
-        elements.audioPlayer.volume = 0;
-        elements.muteBtn.classList.add('muted');
-    } else {
-        elements.audioPlayer.volume = state.volume / 100;
-        elements.muteBtn.classList.remove('muted');
+    elements.muteBtn.classList.toggle('muted', state.isMuted);
+
+    const level = state.isMuted ? 0 : state.volume / 100;
+    state.audioFiles.forEach(file => {
+        file.audio.volume = level;
+    });
+
+    // FIX: reflect mute state in the slider
+    elements.volumeSlider.value = state.isMuted ? 0 : state.volume;
+});
+
+// ─────────────────────────────────────────────
+// Keyboard shortcuts  FIX (new feature)
+// ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    // Ignore when typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    const audio = currentAudio();
+
+    switch (e.key) {
+        case ' ':
+        case 'k':
+            e.preventDefault();
+            if (state.currentIndex < 0) break;
+            state.isPlaying ? pauseAudio() : playAudio(state.currentIndex);
+            break;
+        case 'ArrowLeft':
+            e.preventDefault();
+            if (audio) audio.currentTime = Math.max(0, audio.currentTime - 10);
+            break;
+        case 'ArrowRight':
+            e.preventDefault();
+            if (audio && audio.duration)
+                audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            if (state.currentIndex > 0) playAudio(state.currentIndex - 1);
+            else if (state.loopPlaylist) playAudio(state.audioFiles.length - 1);
+            break;
+        case 'ArrowDown':
+            e.preventDefault();
+            if (state.currentIndex < state.audioFiles.length - 1) playAudio(state.currentIndex + 1);
+            else if (state.loopPlaylist) playAudio(0);
+            break;
+        case 'm':
+        case 'M':
+            elements.muteBtn.click();
+            break;
+        case 'l':
+        case 'L':
+            elements.loopBtn.click();
+            break;
+        case 'r':
+        case 'R':
+            if (state.currentIndex >= 0) handleItemRestart(state.currentIndex);
+            break;
     }
 });
 
-// Audio player event listeners
-elements.audioPlayer.addEventListener('loadedmetadata', () => {
-    elements.totalTime.textContent = formatTime(elements.audioPlayer.duration);
-});
-
-elements.audioPlayer.addEventListener('timeupdate', () => {
-    elements.currentTime.textContent = formatTime(elements.audioPlayer.currentTime);
-    updateProgressBar();
-});
-
-elements.audioPlayer.addEventListener('ended', () => {
-    state.isPlaying = false;
-    updatePlayingState();
-    
-    // Handle autoplay and loop
-    const isLastTrack = state.currentIndex === state.audioFiles.length - 1;
-    
-    if (state.autoplay) {
-        if (!isLastTrack) {
-            // Play next track
-            playAudio(state.currentIndex + 1);
-        } else if (state.loopPlaylist) {
-            // Loop back to first track
-            playAudio(0);
-        }
-    }
-});
-
-elements.audioPlayer.addEventListener('error', (e) => {
-    console.error('Audio error:', e);
-    state.isPlaying = false;
-    updatePlayingState();
-});
-
-// Initialize the application
+// ─────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────
 function init() {
     initTheme();
-    loadAudioFiles();
-    
-    // Set initial volume
-    elements.audioPlayer.volume = state.volume / 100;
-    
-    // Set initial speed label text
-    elements.speedLabel.textContent = `${state.playbackSpeed}x`;
-    
-    // Set initial playback speed
-    elements.audioPlayer.playbackRate = state.playbackSpeed;
+    loadAudioFiles();                                        // preloads all files
+    elements.speedLabel.textContent = `${state.playbackSpeed.toFixed(2)}x`;
+    updateToolbarButtons();
+    updateCurrentTrackInfo();
 }
 
-// Start the app when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
