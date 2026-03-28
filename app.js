@@ -24,11 +24,6 @@ const elements = {
     audioCount:         document.getElementById('audioCount'),
     themeToggle:        document.getElementById('themeToggle'),
 
-    // Loading elements
-    loadingContainer:   document.getElementById('loadingContainer'),
-    loadingFill:        document.getElementById('loadingFill'),
-    loadingText:        document.getElementById('loadingText'),
-
     // Toolbar controls
     globalPlayPauseBtn: document.getElementById('globalPlayPauseBtn'),
     prevBtn:            document.getElementById('prevBtn'),
@@ -78,7 +73,7 @@ elements.themeToggle.addEventListener('click', () => {
 });
 
 // ─────────────────────────────────────────────
-// Load & preload all audio files on page load
+// Load audio files list (no preloading)
 // ─────────────────────────────────────────────
 function loadAudioFiles() {
     if (typeof AUDIO_FILES === 'undefined' || !Array.isArray(AUDIO_FILES)) {
@@ -95,51 +90,32 @@ function loadAudioFiles() {
         return;
     }
 
-    let loadedCount = 0;
-    const totalFiles = AUDIO_FILES.length;
+    // Create file list without preloading
+    state.audioFiles = AUDIO_FILES.map(filename => ({
+        name:        filename,
+        audio:       null,  // Load on-demand
+        displayName: filename.replace(/\.[^/.]+$/, '') // strip extension
+    }));
 
-    // Initialize loading UI
-    elements.loadingText.textContent = `Loading: 0 / ${totalFiles}`;
-    elements.loadingFill.style.width = '0%';
-
-    // FIX: Preload ALL audio files upfront using individual Audio objects
-    state.audioFiles = AUDIO_FILES.map(filename => {
-        const audio = new Audio(`All_Audio/${filename}`);
-        audio.preload = 'auto';          // instruct browser to load the full file
-        audio.volume  = state.volume / 100;
-        return {
-            name:        filename,
-            audio,
-            displayName: filename.replace(/\.[^/.]+$/, '') // strip extension
-        };
-    });
-
-    // Attach event listeners to each Audio object
-    state.audioFiles.forEach((file, index) => {
-        attachAudioListeners(file.audio, index);
-
-        // Track loading progress
-        file.audio.addEventListener('canplaythrough', () => {
-            loadedCount++;
-            const progress = (loadedCount / totalFiles) * 100;
-            elements.loadingFill.style.width = `${progress}%`;
-            elements.loadingText.textContent = `Loading: ${loadedCount} / ${totalFiles}`;
-
-            if (loadedCount === totalFiles) {
-                // All files loaded
-                elements.loadingContainer.style.display = 'none';
-                elements.audioList.style.display = '';  // show list
-                elements.emptyState.style.display = 'none';
-                renderAudioList();
-                updateAudioCount();
-            }
-        });
-    });
+    elements.audioList.style.display = '';
+    elements.emptyState.style.display = 'none';
+    renderAudioList();
+    updateAudioCount();
 }
 
 // ─────────────────────────────────────────────
-// Attach per-track Audio event listeners
+// Preload a specific track (optional optimization)
 // ─────────────────────────────────────────────
+function preloadTrack(index) {
+    if (index < 0 || index >= state.audioFiles.length) return;
+    const file = state.audioFiles[index];
+    if (!file.audio) {
+        file.audio = new Audio(`All_Audio/${file.name}`);
+        file.audio.preload = 'metadata';  // Load metadata only for faster preload
+        file.audio.volume = state.volume / 100;
+        attachAudioListeners(file.audio, index);
+    }
+}
 function attachAudioListeners(audio, index) {
     // FIX: apply speed on metadata load so it always sticks after preload
     audio.addEventListener('loadedmetadata', () => {
@@ -315,6 +291,13 @@ function playAudio(index) {
 
     const file = state.audioFiles[index];
 
+    // Load audio on-demand if not already loaded
+    if (!file.audio) {
+        file.audio = new Audio(`All_Audio/${file.name}`);
+        file.audio.volume = state.volume / 100;
+        attachAudioListeners(file.audio, index);
+    }
+
     // Stop currently playing track cleanly
     if (state.currentIndex !== index) {
         stopCurrentAudio();
@@ -334,6 +317,10 @@ function playAudio(index) {
             errorSkipCount  = 0;
             updatePlayingState();
             scrollToTrack(index);
+
+            // Preload adjacent tracks for smoother navigation
+            preloadTrack(index + 1);
+            preloadTrack(index - 1);
         })
         .catch(err => {
             console.error(`[AudioPlayer] Play error for "${file.name}":`, err);
