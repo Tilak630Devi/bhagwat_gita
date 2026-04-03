@@ -4,7 +4,7 @@
   "description": "Bhagwat Gita offline app",
   "main": "index.js",
   "scripts": {
-    "build": "echo \"No build step required\"",
+    "build": "npx cap sync android",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,9 +20,7 @@
   "homepage": "https://github.com/Tilak630Devi/bhagwat_gita#readme",
   "dependencies": {
     "@capacitor/core": "^8.3.0",
-    "@capacitor/android": "^8.3.0"
-  },
-  "devDependencies": {
+    "@capacitor/android": "^8.3.0",
     "@capacitor/cli": "^8.3.0"
   }
 }
