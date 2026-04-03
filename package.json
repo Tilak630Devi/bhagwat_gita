@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "node node_modules/@capacitor/cli/bin/capacitor sync android",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "ionic:build": "echo \"skip\""
   },
   "repository": {
     "type": "git",
