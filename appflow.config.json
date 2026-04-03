@@ -1,7 +1,0 @@
-{
-  "type": "capacitor",
-  "platforms": ["android"],
-  "android": {
-    "runCapacitorSync": false
-  }
-}
