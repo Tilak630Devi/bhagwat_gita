@@ -1,6 +1,6 @@
 {
-  "appId": "com.example.app",
+  "appId": "com.bhagwadgeeta.app",
   "appName": "bhagawadgeeta",
-  "webDir": "Repo",
+  "webDir": "www",
   "bundledWebRuntime": false
 }
