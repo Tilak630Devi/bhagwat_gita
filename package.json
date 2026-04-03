@@ -4,7 +4,7 @@
   "description": "Bhagwat Gita offline app",
   "main": "index.js",
   "scripts": {
-    "build": "npx cap sync android",
+    "build": "node node_modules/@capacitor/cli/bin/capacitor sync android",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
