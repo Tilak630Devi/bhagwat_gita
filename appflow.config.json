@@ -1,9 +1,7 @@
 {
   "type": "capacitor",
-  "platform": "android",
-  "buildOptions": {
-    "android": {
-      "runCapacitorSync": false
-    }
+  "platforms": ["android"],
+  "android": {
+    "runCapacitorSync": false
   }
 }
