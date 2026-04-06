@@ -1,18 +1,15 @@
 // app.js
-// Audio Player Application — Fixed & Updated
+// Audio Player Application — Refactored & Fully Fixed
 
 // ─────────────────────────────────────────────
 // State Management
 // ─────────────────────────────────────────────
 const state = {
-    audioFiles: [],       // Array of { name, audio (Audio object), displayName }
+    audioFiles: [],       // Array of { name, audio (Audio object | null), displayName }
     currentIndex: -1,
     isPlaying: false,
     autoplay: true,
-    loopPlaylist: false,
-    volume: 100,
-    isMuted: false,
-    playbackSpeed: 1.0
+    loopPlaylist: false
 };
 
 // ─────────────────────────────────────────────
@@ -33,10 +30,6 @@ const elements = {
     forwardBtn:         document.getElementById('forwardBtn'),
     autoplayBtn:        document.getElementById('autoplayBtn'),
     loopBtn:            document.getElementById('loopBtn'),
-    speedSlider:        document.getElementById('speedSlider'),
-    speedLabel:         document.getElementById('speedLabel'),
-    muteBtn:            document.getElementById('muteBtn'),
-    volumeSlider:       document.getElementById('volumeSlider'),
 
     // Progress bar
     progressBar:        document.getElementById('progressBar'),
@@ -90,10 +83,10 @@ function loadAudioFiles() {
         return;
     }
 
-    // Create file list without preloading
+    // Create file list without preloading — audio objects created on demand
     state.audioFiles = AUDIO_FILES.map(filename => ({
         name:        filename,
-        audio:       null,  // Load on-demand
+        audio:       null,
         displayName: filename.replace(/\.[^/.]+$/, '') // strip extension
     }));
 
@@ -104,22 +97,20 @@ function loadAudioFiles() {
 }
 
 // ─────────────────────────────────────────────
-// Preload a specific track (optional optimization)
+// Preload a specific track (on-demand)
 // ─────────────────────────────────────────────
 function preloadTrack(index) {
     if (index < 0 || index >= state.audioFiles.length) return;
     const file = state.audioFiles[index];
     if (!file.audio) {
         file.audio = new Audio(`All_Audio/${file.name}`);
-        file.audio.preload = 'metadata';  // Load metadata only for faster preload
-        file.audio.volume = state.volume / 100;
+        file.audio.preload = 'metadata';
         attachAudioListeners(file.audio, index);
     }
 }
+
 function attachAudioListeners(audio, index) {
-    // FIX: apply speed on metadata load so it always sticks after preload
     audio.addEventListener('loadedmetadata', () => {
-        audio.playbackRate = state.playbackSpeed;
         if (index === state.currentIndex) {
             elements.totalTime.textContent = formatTime(audio.duration);
         }
@@ -138,38 +129,42 @@ function attachAudioListeners(audio, index) {
         handleTrackEnded();
     });
 
-    // FIX: skip to next track on error instead of silently stopping
+    // On error: show inline message and attempt to skip to next track
     audio.addEventListener('error', () => {
         if (index !== state.currentIndex) return;
         console.error(`[AudioPlayer] Error loading: ${state.audioFiles[index].name}`);
         showInlineError(index);
         state.isPlaying = false;
         updatePlayingState();
-        // Attempt to skip to next track automatically
         trySkipOnError();
     });
 }
 
 // ─────────────────────────────────────────────
-// Auto-skip on error with guard against loops
+// Auto-skip on error with guard against infinite loops
 // ─────────────────────────────────────────────
 let errorSkipCount = 0;
+
+function resetErrorSkipCount() {
+    errorSkipCount = 0;
+}
+
 function trySkipOnError() {
     if (errorSkipCount >= state.audioFiles.length) {
         errorSkipCount = 0;
-        return; // all tracks errored, give up
+        return; // All tracks errored — give up
     }
     errorSkipCount++;
     const next = state.currentIndex + 1;
     if (state.autoplay && next < state.audioFiles.length) {
         playAudio(next);
-    } else if (state.autoplay && state.loopPlaylist) {
+    } else if (state.loopPlaylist) {
         playAudio(0);
     }
 }
 
 // ─────────────────────────────────────────────
-// Inline error message (replaces alert)  FIX
+// Inline error message (no alerts)
 // ─────────────────────────────────────────────
 function showInlineError(index) {
     const item = document.querySelector(`.audio-item[data-index="${index}"]`);
@@ -210,7 +205,7 @@ function renderAudioList() {
 
 function createAudioItem(audio, index) {
     const item = document.createElement('div');
-    item.className    = 'audio-item';
+    item.className     = 'audio-item';
     item.dataset.index = index;
 
     item.innerHTML = `
@@ -257,28 +252,32 @@ function handleItemPlayPause(index) {
     }
 }
 
-// FIX: restart sets currentTime=0 inside the promise so it's guaranteed to work
+// FIX: Ensure audio is loaded before attempting restart; delegate to playAudio
+// to avoid duplicating play logic and null-reference crashes.
 function handleItemRestart(index) {
-    const file = state.audioFiles[index];
-    if (!file) return;
+    if (index < 0 || index >= state.audioFiles.length) return;
 
+    // Ensure the audio object exists before trying to use it
+    preloadTrack(index);
+
+    const file  = state.audioFiles[index];
+    const audio = file.audio;
+
+    // If this isn't the current track, stop what's playing and switch
     if (state.currentIndex !== index) {
-        // Stop current track first
         stopCurrentAudio();
         state.currentIndex = index;
         updateCurrentTrackInfo();
-        syncTimeDisplay();
     }
 
-    const audio = file.audio;
-    audio.currentTime  = 0;
-    audio.playbackRate = state.playbackSpeed;
+    audio.currentTime = 0;
 
     audio.play()
         .then(() => {
             state.isPlaying = true;
-            errorSkipCount  = 0;
+            resetErrorSkipCount();
             updatePlayingState();
+            scrollToTrackIfNeeded(index);
         })
         .catch(err => {
             console.error('[AudioPlayer] Restart error:', err);
@@ -289,16 +288,13 @@ function handleItemRestart(index) {
 function playAudio(index) {
     if (index < 0 || index >= state.audioFiles.length) return;
 
-    const file = state.audioFiles[index];
-
     // Load audio on-demand if not already loaded
-    if (!file.audio) {
-        file.audio = new Audio(`All_Audio/${file.name}`);
-        file.audio.volume = state.volume / 100;
-        attachAudioListeners(file.audio, index);
-    }
+    preloadTrack(index);
 
-    // Stop currently playing track cleanly
+    const file  = state.audioFiles[index];
+    const audio = file.audio;
+
+    // Stop currently playing track cleanly before switching
     if (state.currentIndex !== index) {
         stopCurrentAudio();
         state.currentIndex = index;
@@ -306,21 +302,16 @@ function playAudio(index) {
         syncTimeDisplay();
     }
 
-    const audio = file.audio;
-    // FIX: always (re-)apply speed before playing — ensures it survives src changes
-    audio.playbackRate = state.playbackSpeed;
-    audio.volume       = state.isMuted ? 0 : state.volume / 100;
-
     audio.play()
         .then(() => {
             state.isPlaying = true;
-            errorSkipCount  = 0;
+            resetErrorSkipCount();
             updatePlayingState();
-            scrollToTrack(index);
+            scrollToTrackIfNeeded(index);
 
             // Preload adjacent tracks for smoother navigation
             preloadTrack(index + 1);
-            preloadTrack(index - 1);
+            if (index - 1 >= 0) preloadTrack(index - 1);
         })
         .catch(err => {
             console.error(`[AudioPlayer] Play error for "${file.name}":`, err);
@@ -335,27 +326,27 @@ function pauseAudio() {
     updatePlayingState();
 }
 
-// Stop & reset the currently active Audio object
+// Stop the currently active track without resetting its position,
+// so the user can resume it later.
 function stopCurrentAudio() {
     const audio = currentAudio();
-    if (audio) {
-        audio.pause();
-        // do NOT reset currentTime — user may resume later
-    }
+    if (audio) audio.pause();
     state.isPlaying = false;
 }
 
 // ─────────────────────────────────────────────
 // Track-ended handler
+// FIX: Made loop and autoplay consistent — loop always wraps,
+// autoplay advances linearly. They are mutually exclusive in state.
 // ─────────────────────────────────────────────
 function handleTrackEnded() {
     const isLast = state.currentIndex === state.audioFiles.length - 1;
 
     if (state.loopPlaylist) {
-        // Loop always wraps — autoplay is off in this state
+        // Loop wraps to start unconditionally
         playAudio(isLast ? 0 : state.currentIndex + 1);
     } else if (state.autoplay && !isLast) {
-        // Autoplay advances linearly, stops at end
+        // Autoplay advances linearly, stops at the last track
         playAudio(state.currentIndex + 1);
     }
 }
@@ -365,9 +356,9 @@ function handleTrackEnded() {
 // ─────────────────────────────────────────────
 function updatePlayingState() {
     document.querySelectorAll('.audio-item').forEach(item => {
-        const idx        = parseInt(item.dataset.index);
-        const btn        = item.querySelector('.play-pause-btn');
-        const isActive   = idx === state.currentIndex && state.isPlaying;
+        const idx      = parseInt(item.dataset.index);
+        const btn      = item.querySelector('.play-pause-btn');
+        const isActive = idx === state.currentIndex && state.isPlaying;
         item.classList.toggle('playing', isActive);
         btn.classList.toggle('playing',  isActive);
     });
@@ -384,20 +375,20 @@ function updateCurrentTrackInfo() {
     }
 }
 
-// Sync time display when switching tracks (shows preloaded duration if available)
+// Sync time display when switching tracks
 function syncTimeDisplay() {
     const audio = currentAudio();
-    if (!audio) return;
-    elements.currentTime.textContent = formatTime(audio.currentTime);
-    elements.totalTime.textContent   = formatTime(audio.duration);
+    elements.currentTime.textContent = '0:00';
+    elements.totalTime.textContent   = audio && !isNaN(audio.duration) ? formatTime(audio.duration) : '0:00';
     updateProgressBar();
 }
 
-// FIX: disable Next/Prev correctly when loop is ON (wrap is possible)
+// FIX: Guard hasTrack before computing hasPrev/hasNext to prevent
+// enabling navigation buttons when no track has ever been selected.
 function updateToolbarButtons() {
     const hasTrack = state.currentIndex >= 0;
-    const hasPrev  = state.currentIndex > 0  || state.loopPlaylist;
-    const hasNext  = state.currentIndex < state.audioFiles.length - 1 || state.loopPlaylist;
+    const hasPrev  = hasTrack && (state.currentIndex > 0 || state.loopPlaylist);
+    const hasNext  = hasTrack && (state.currentIndex < state.audioFiles.length - 1 || state.loopPlaylist);
 
     elements.globalPlayPauseBtn.disabled = !hasTrack;
     elements.restartBtn.disabled         = !hasTrack;
@@ -407,33 +398,42 @@ function updateToolbarButtons() {
     elements.nextBtn.disabled            = !hasNext;
 }
 
-// FIX: formatTime handles hours correctly
+// FIX: Handles hours correctly; formats consistently as m:ss or h:mm:ss
 function formatTime(seconds) {
-    if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
-    const h    = Math.floor(seconds / 3600);
-    const m    = Math.floor((seconds % 3600) / 60);
-    const s    = Math.floor(seconds % 60);
-    const mm   = h > 0 ? String(m).padStart(2, '0') : String(m);
-    const ss   = String(s).padStart(2, '0');
+    if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '0:00';
+    const h  = Math.floor(seconds / 3600);
+    const m  = Math.floor((seconds % 3600) / 60);
+    const s  = Math.floor(seconds % 60);
+    const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+    const ss = String(s).padStart(2, '0');
     return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 function updateProgressBar() {
     const audio = currentAudio();
-    if (audio && audio.duration) {
+    if (audio && audio.duration && !isNaN(audio.duration)) {
         const progress = (audio.currentTime / audio.duration) * 100;
         elements.progressBarFill.style.width = `${progress}%`;
+    } else {
+        elements.progressBarFill.style.width = '0%';
     }
 }
 
-// FIX: scroll active track into view
-function scrollToTrack(index) {
+// FIX: Only scroll if the item is not already fully visible in its container,
+// preventing scroll jitter when the track is already on screen.
+function scrollToTrackIfNeeded(index) {
     const item = document.querySelector(`.audio-item[data-index="${index}"]`);
-    if (item) item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (!item) return;
+    const rect       = item.getBoundingClientRect();
+    const parentRect = item.parentElement.getBoundingClientRect();
+    const fullyVisible = rect.top >= parentRect.top && rect.bottom <= parentRect.bottom;
+    if (!fullyVisible) {
+        item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 }
 
 // ─────────────────────────────────────────────
-// Progress bar — click AND drag  FIX
+// Progress bar — click and drag with full edge-case handling
 // ─────────────────────────────────────────────
 let isDraggingProgress = false;
 
@@ -446,7 +446,7 @@ function seekFromEvent(e) {
 
 function seekTo(percentage) {
     const audio = currentAudio();
-    if (audio && audio.duration) {
+    if (audio && audio.duration && !isNaN(audio.duration)) {
         audio.currentTime = (percentage / 100) * audio.duration;
     }
 }
@@ -455,10 +455,17 @@ elements.progressBar.addEventListener('mousedown', e => {
     isDraggingProgress = true;
     seekFromEvent(e);
 });
+
 document.addEventListener('mousemove', e => {
     if (isDraggingProgress) seekFromEvent(e);
 });
+
 document.addEventListener('mouseup', () => {
+    isDraggingProgress = false;
+});
+
+// FIX: Clear drag state if mouse leaves the window entirely
+window.addEventListener('mouseleave', () => {
     isDraggingProgress = false;
 });
 
@@ -467,10 +474,17 @@ elements.progressBar.addEventListener('touchstart', e => {
     isDraggingProgress = true;
     seekFromEvent(e.touches[0]);
 }, { passive: true });
+
 document.addEventListener('touchmove', e => {
     if (isDraggingProgress) seekFromEvent(e.touches[0]);
 }, { passive: true });
+
 document.addEventListener('touchend', () => {
+    isDraggingProgress = false;
+});
+
+// FIX: Handle interrupted touch gestures (e.g. phone calls, notifications)
+document.addEventListener('touchcancel', () => {
     isDraggingProgress = false;
 });
 
@@ -482,7 +496,7 @@ elements.globalPlayPauseBtn.addEventListener('click', () => {
     state.isPlaying ? pauseAudio() : playAudio(state.currentIndex);
 });
 
-// FIX: prev wraps around when loopPlaylist is on
+// FIX: Wrap around when loopPlaylist is on
 elements.prevBtn.addEventListener('click', () => {
     if (state.currentIndex > 0) {
         playAudio(state.currentIndex - 1);
@@ -491,7 +505,7 @@ elements.prevBtn.addEventListener('click', () => {
     }
 });
 
-// FIX: next wraps around when loopPlaylist is on
+// FIX: Wrap around when loopPlaylist is on
 elements.nextBtn.addEventListener('click', () => {
     if (state.currentIndex < state.audioFiles.length - 1) {
         playAudio(state.currentIndex + 1);
@@ -518,11 +532,11 @@ elements.forwardBtn.addEventListener('click', () => {
     }
 });
 
+// Autoplay and Loop are mutually exclusive in this player's UX model.
 elements.autoplayBtn.addEventListener('click', () => {
     state.autoplay = !state.autoplay;
     elements.autoplayBtn.classList.toggle('active', state.autoplay);
 
-    // Mutually exclusive: disable loop when autoplay is turned on
     if (state.autoplay && state.loopPlaylist) {
         state.loopPlaylist = false;
         elements.loopBtn.classList.remove('active');
@@ -534,7 +548,6 @@ elements.loopBtn.addEventListener('click', () => {
     state.loopPlaylist = !state.loopPlaylist;
     elements.loopBtn.classList.toggle('active', state.loopPlaylist);
 
-    // Mutually exclusive: disable autoplay when loop is turned on
     if (state.loopPlaylist && state.autoplay) {
         state.autoplay = false;
         elements.autoplayBtn.classList.remove('active');
@@ -542,56 +555,11 @@ elements.loopBtn.addEventListener('click', () => {
     updateToolbarButtons();
 });
 
-elements.speedSlider.addEventListener('input', e => {
-    const speed         = parseFloat(e.target.value);
-    state.playbackSpeed = speed;
-    elements.speedLabel.textContent = `${speed.toFixed(2)}x`;
-
-    // Apply to ALL preloaded Audio objects so switching tracks keeps the speed
-    state.audioFiles.forEach(file => {
-        file.audio.playbackRate = speed;
-    });
-});
-
-// FIX: volume slider fully updates state.volume and unmutes correctly
-elements.volumeSlider.addEventListener('input', e => {
-    const volume  = parseInt(e.target.value);
-    state.volume  = volume;                          // always update state
-    const level   = volume / 100;
-
-    state.audioFiles.forEach(file => {
-        file.audio.volume = state.isMuted ? 0 : level;
-    });
-
-    // FIX: sync mute button visual when slider is dragged to 0
-    if (volume === 0) {
-        state.isMuted = true;
-        elements.muteBtn.classList.add('muted');
-    } else if (state.isMuted) {
-        state.isMuted = false;
-        elements.muteBtn.classList.remove('muted');
-    }
-});
-
-// FIX: mute button also updates the volume slider to 0 visually
-elements.muteBtn.addEventListener('click', () => {
-    state.isMuted = !state.isMuted;
-    elements.muteBtn.classList.toggle('muted', state.isMuted);
-
-    const level = state.isMuted ? 0 : state.volume / 100;
-    state.audioFiles.forEach(file => {
-        file.audio.volume = level;
-    });
-
-    // FIX: reflect mute state in the slider
-    elements.volumeSlider.value = state.isMuted ? 0 : state.volume;
-});
-
 // ─────────────────────────────────────────────
-// Keyboard shortcuts  FIX (new feature)
+// Keyboard shortcuts
 // ─────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-    // Ignore when typing in an input
+    // Ignore when user is typing in an input field
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
     const audio = currentAudio();
@@ -622,10 +590,6 @@ document.addEventListener('keydown', e => {
             if (state.currentIndex < state.audioFiles.length - 1) playAudio(state.currentIndex + 1);
             else if (state.loopPlaylist) playAudio(0);
             break;
-        case 'm':
-        case 'M':
-            elements.muteBtn.click();
-            break;
         case 'l':
         case 'L':
             elements.loopBtn.click();
@@ -642,8 +606,7 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────
 function init() {
     initTheme();
-    loadAudioFiles();                                        // preloads all files
-    elements.speedLabel.textContent = `${state.playbackSpeed.toFixed(2)}x`;
+    loadAudioFiles();
     updateToolbarButtons();
     updateCurrentTrackInfo();
 }
